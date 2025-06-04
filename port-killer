@@ -1,0 +1,30 @@
+#!/bin/bash
+
+echo "🔍 Scanning open/listening ports..."
+
+if command -v ss &>/dev/null; then
+  echo -e "\n▶ Using ss:"
+  ss -tuln | awk 'NR==1 || /LISTEN/ {print}'
+elif command -v netstat &>/dev/null; then
+  echo -e "\n▶ Using netstat:"
+  netstat -tuln | awk 'NR==2 || /LISTEN/ {print}'
+elif command -v lsof &>/dev/null; then
+  echo -e "\n▶ Using lsof:"
+  sudo lsof -i -P -n | grep LISTEN
+else
+  echo "❌ None of ss, netstat, or lsof found. Please install one."
+  exit 1
+fi
+
+echo "  "
+echo "⚠️ WARNING: This will kill all programs listening on network ports."
+echo "  "
+read -p "Are you sure? [y/N] " confirm
+[[ "$confirm" != "y" && "$confirm" != "Y" ]] && exit 1
+echo "  "
+for pid in $(sudo ss -tulnp | awk '/LISTEN/ && /users:/ { gsub(".*pid=","", $NF); gsub(",.*",""); print $NF }'); do
+  echo "Killing PID $pid"
+  sudo kill -9 "$pid"
+done
+echo "  "
+echo "✅ All listening services terminated (forcefully)."
